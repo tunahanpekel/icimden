@@ -1,0 +1,12 @@
+# key.properties.example
+#
+# Copy this file to key.properties and fill in your actual values.
+# NEVER commit key.properties to version control.
+# In CI, these values are set via environment variables (see deploy-android.yml).
+#
+# key.properties is read by android/app/build.gradle for release signing.
+
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+storeFile=release.jks

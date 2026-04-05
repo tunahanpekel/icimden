@@ -1,0 +1,77 @@
+# frozen_string_literal: true
+
+default_platform :android
+
+PROJECT_ROOT = File.expand_path("../../", __dir__)
+FLUTTER_BIN  = "flutter"
+PACKAGE_NAME = "com.icimden.app"
+
+def dart_define_args
+  {
+    "APP_ENV"                      => ENV["DART_DEFINE_APP_ENV"] || "prod",
+    "SUPABASE_URL"                 => ENV["DART_DEFINE_SUPABASE_URL"],
+    "SUPABASE_ANON_KEY"            => ENV["DART_DEFINE_SUPABASE_ANON_KEY"],
+    "ANDROID_INTERSTITIAL_AD_ID"   => ENV["DART_DEFINE_ANDROID_INTERSTITIAL_AD_ID"],
+    "ANDROID_BANNER_AD_ID"         => ENV["DART_DEFINE_ANDROID_BANNER_AD_ID"],
+    "IOS_INTERSTITIAL_AD_ID"       => ENV["DART_DEFINE_IOS_INTERSTITIAL_AD_ID"],
+    "IOS_BANNER_AD_ID"             => ENV["DART_DEFINE_IOS_BANNER_AD_ID"],
+  }.map { |k, v| "--dart-define=#{k}=#{v}" }.join(" ")
+end
+
+platform :android do
+  desc "Run Flutter tests"
+  lane :test do
+    Dir.chdir(PROJECT_ROOT) { sh "flutter test --coverage" }
+  end
+
+  desc "Build AAB and upload to Play Internal track (staging)"
+  lane :beta do
+    version   = ENV["APP_VERSION"] || "1.0.0"
+    build_num = ENV["BUILD_NUMBER"] || Time.now.utc.strftime("%Y%m%d%H%M")
+
+    Dir.chdir(PROJECT_ROOT) do
+      sh "#{FLUTTER_BIN} pub get"
+      sh "#{FLUTTER_BIN} build appbundle --release " \
+         "--build-name=#{version} --build-number=#{build_num} #{dart_define_args}"
+    end
+
+    upload_to_play_store(
+      package_name:            PACKAGE_NAME,
+      track:                   "internal",
+      aab:                     "#{PROJECT_ROOT}/build/app/outputs/bundle/release/app-release.aab",
+      json_key:                "fastlane/keys/play_store_key.json",
+      skip_upload_apk:         true,
+      skip_upload_metadata:    true,
+      skip_upload_changelogs:  true,
+      skip_upload_images:      true,
+      skip_upload_screenshots: true,
+      release_status:          "draft",
+    )
+  end
+
+  desc "Build AAB and submit to Play Store production"
+  lane :release do
+    version   = ENV["APP_VERSION"]
+    build_num = ENV["BUILD_NUMBER"]
+
+    UI.user_error!("APP_VERSION is required for production release") unless version
+    UI.user_error!("BUILD_NUMBER is required for production release") unless build_num
+
+    Dir.chdir(PROJECT_ROOT) do
+      sh "#{FLUTTER_BIN} pub get"
+      sh "#{FLUTTER_BIN} build appbundle --release " \
+         "--build-name=#{version} --build-number=#{build_num} #{dart_define_args}"
+    end
+
+    upload_to_play_store(
+      package_name:            PACKAGE_NAME,
+      track:                   "production",
+      rollout:                 "0.1",
+      aab:                     "#{PROJECT_ROOT}/build/app/outputs/bundle/release/app-release.aab",
+      json_key:                "fastlane/keys/play_store_key.json",
+      skip_upload_apk:         true,
+      skip_upload_metadata:    false,
+      release_status:          "inProgress",
+    )
+  end
+end
